@@ -1,12 +1,14 @@
 "use client";
 import DefaultLayout from "@/components/Layouts/DefaultLayout";
 import TableThree from "@/components/Tables/TableThree";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useContext } from "react";
+import { SearchContext } from '@/contexts/SearchContext';
 
 export default function Empleados() {
   const [empleados, setEmpleados] = useState([]);
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(10);
+  const { searchTerm } = useContext(SearchContext);
 
   useEffect(() => {
     const fetchEmpleados = async () => {
@@ -17,7 +19,7 @@ export default function Empleados() {
         // Transformar los datos al formato requerido
         const empleadosFormateados = data.map((empleado: any) => ({
           id: empleado.id,
-          nombre: `${empleado.name} ${empleado.primer_apellido} ${empleado.segundo_apellido || ''}`.trim(),
+          nombre: `${empleado.name} ${empleado.segundo_nombre} ${empleado.primer_apellido} ${empleado.segundo_apellido || ''}`.trim(),
           cargo: empleado.id_cargo.toString(),
           departamento: empleado.id_departamento.toString(),
           email: empleado.correo || 'No disponible',
@@ -36,17 +38,28 @@ export default function Empleados() {
     fetchEmpleados();
   }, []);
 
-  // Obtener los índices del primer y último elemento de la página actual
+  // Filtrar empleados según término de búsqueda
+  const filteredEmpleados = empleados.filter((empleado: {
+    nombre: string;
+    cedula: string;
+    cargo: string;
+  }) => {
+    return (
+      empleado.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      empleado.cedula.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      empleado.cargo.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+  });
+
+  // Paginación
   const indexOfLastItem = currentPage * itemsPerPage;
   const indexOfFirstItem = indexOfLastItem - itemsPerPage;
-  const currentItems = empleados.slice(indexOfFirstItem, indexOfLastItem);
+  const currentEmpleados = filteredEmpleados.slice(indexOfFirstItem, indexOfLastItem);
+  const totalPages = Math.ceil(filteredEmpleados.length / itemsPerPage);
 
-  // Cambiar de página
   const handlePageChange = (pageNumber: number) => {
     setCurrentPage(pageNumber);
   };
-
-  const totalPages = Math.ceil(empleados.length / itemsPerPage);
 
   return (
     <DefaultLayout>
@@ -62,11 +75,11 @@ export default function Empleados() {
               { header: 'Teléfono', key: 'telefono', minWidth: '120px' },
               { header: 'Dirección', key: 'direccion', minWidth: '300px' }
             ]}
-            data={currentItems}
+            data={currentEmpleados}
           />
         </div>
         
-        <div className="flex justify-center gap-2 py-4 bg-white border-t">
+        <div className="flex justify-center items-center gap-2 py-4 bg-white border-t">
           <button
             onClick={() => handlePageChange(currentPage - 1)}
             disabled={currentPage === 1}

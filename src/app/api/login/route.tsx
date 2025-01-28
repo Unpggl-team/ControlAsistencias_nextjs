@@ -1,22 +1,31 @@
 import { NextResponse } from 'next/server'
 
-export async function GET() {
+export async function POST(request: Request) {
     try {
-        const response = await fetch('http://test.uncpggl.edu.ni:3011/api/Datos_personal', {
+        const body = await request.json();
+        const { inss, password } = body;
+        
+        const response = await fetch('http://test.uncpggl.edu.ni:3011/api/login', {
             method: 'POST',
             headers: {
-                'Authorization': 'Bearer 13224|pA7dwRWILfpggCMloUtHK7WgwcqQQwEaMTDYutAu',
                 'Content-Type': 'application/json',
                 'Accept': 'application/json'
-            }
+            },
+            body: JSON.stringify({
+                inss,
+                password
+            })
         });
 
         if (!response.ok) {
-            throw new Error(`Error HTTP: ${response.status}`);
+            return NextResponse.json(
+                { message: 'Credenciales inválidas' },
+                { status: response.status }
+            );
         }
 
         const data = await response.json();
-        return NextResponse.json({ message: 'Datos obtenidos exitosamente', data });
+        return NextResponse.json(data);
         
     } catch (error) {
         console.error('Error al obtener los datos:', error);    
