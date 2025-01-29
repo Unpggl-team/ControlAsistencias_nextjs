@@ -3,12 +3,27 @@ import DefaultLayout from "@/components/Layouts/DefaultLayout";
 import TableThree from "@/components/Tables/TableThree";
 import { useEffect, useState, useContext } from "react";
 import { SearchContext } from '@/contexts/SearchContext';
+import { useAuth } from '@/contexts/AuthContext';
+import { useRouter } from 'next/navigation';
 
 export default function Empleados() {
   const [empleados, setEmpleados] = useState([]);
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(10);
   const { searchTerm } = useContext(SearchContext);
+
+  const { isAuthenticated, user } = useAuth();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (!isAuthenticated) {
+      router.push('/auth/signin');
+    }
+  }, [isAuthenticated, router]);
+
+  if (!isAuthenticated) {
+    return null;
+  }
 
   useEffect(() => {
     const fetchEmpleados = async () => {

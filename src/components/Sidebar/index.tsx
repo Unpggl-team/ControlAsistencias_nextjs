@@ -15,8 +15,17 @@ interface SidebarProps {
   sidebarOpen: boolean;
   setSidebarOpen: (arg: boolean) => void;
 }
-
 const menuGroups = [
+  {
+    name: "INICIO",
+    menuItems: [
+      {
+        icon: <FiUser size={18} className="fill-current" />,
+        label: "Dashboard",
+        route: "/",
+      }
+    ]
+  },
   {
     name: "ADMINISTRACIÓN",
     menuItems: [

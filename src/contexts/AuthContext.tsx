@@ -1,66 +1,109 @@
+"use client";
 import { createContext, useState, useContext, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import Cookies from 'js-cookie';
+
+interface User {
+  nombres: string;
+  departamento: string;
+  id_user: number;
+  rol: number;
+  token: string;
+}
 
 interface AuthContextType {
-  user: any | null;
-  login: (inss: string, password: string) => Promise<void>;
+  user: User | null;
+  login: (inss: string, password: string) => Promise<boolean>;
   logout: () => void;
   isAuthenticated: boolean;
 }
 
 const AuthContext = createContext<AuthContextType>({
   user: null,
-  login: async () => {},
+  login: async () => false,
   logout: () => {},
   isAuthenticated: false,
 });
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<any | null>(null);
+  const [user, setUser] = useState<User | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
-    // Verificar si hay un token almacenado al cargar la página
-    const token = localStorage.getItem('authToken');
-    if (token) {
-      setIsAuthenticated(true);
-      // Aquí podrías hacer una llamada a la API para obtener los datos del usuario
-    }
+    checkAuth();
   }, []);
 
-  const login = async (inss: string, password: string) => {
+  const checkAuth = () => {
+    const token = Cookies.get('token');
+    const storedUser = localStorage.getItem('user');
+    
+    if (token && storedUser) {
+      try {
+        const userData = JSON.parse(storedUser);
+        setUser(userData);
+        setIsAuthenticated(true);
+      } catch (error) {
+        console.error('Error al parsear datos del usuario:', error);
+        handleLogout();
+      }
+    } else {
+      handleLogout();
+    }
+  };
+
+  const login = async (inss: string, password: string): Promise<boolean> => {
     try {
       const response = await fetch('/api/login', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ inss, password }),
+        body: JSON.stringify({
+          inss,
+          password
+        }),
       });
 
+      const data = await response.json();
+      console.log(data);  
       if (!response.ok) {
-        throw new Error('Credenciales inválidas');
+        console.error('Error de login:', data.message);
+        return false;
       }
 
-      const data = await response.json();
+      const userData: User = {
+        nombres: data.user.nombres,
+        departamento: data.user.departamento,
+        id_user: data.user.id_user,
+        rol: data.user.rol,
+        token: data.token
+      };
+
+      // Guardar token en cookie y datos del usuario en localStorage
+      console.log(userData);
+      Cookies.set('token', data.token, { expires: 7 }); // Cookie expira en 7 días
+      localStorage.setItem('user', JSON.stringify(userData));
       
-      localStorage.setItem('authToken', data.token);
-      localStorage.setItem('isAuthenticated', 'true');
-      setUser(data.user);
+      setUser(userData);
       setIsAuthenticated(true);
-      
-      router.push('/');
+      return true;
+
     } catch (error) {
       console.error('Error de autenticación:', error);
-      throw error;
+      return false;
     }
   };
 
-  const logout = () => {
-    localStorage.removeItem('authToken');
+  const handleLogout = () => {
+    Cookies.remove('token');
+    localStorage.removeItem('user');
     setUser(null);
     setIsAuthenticated(false);
+  };
+
+  const logout = () => {
+    handleLogout();
     router.push('/auth/signin');
   };
 
@@ -71,4 +114,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   );
 }
 
-export const useAuth = () => useContext(AuthContext); 
+export const useAuth = () => {
+  const context = useContext(AuthContext);
+  if (context === undefined) {
+    throw new Error('useAuth debe ser usado dentro de un AuthProvider');
+  }
+  return context;
+};

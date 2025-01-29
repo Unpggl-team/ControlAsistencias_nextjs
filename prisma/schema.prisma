@@ -13,27 +13,29 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model Employee {
-  id         Int          @id @default(autoincrement())
-  ci         String       @unique
-  name       String
-  lastName   String
-  department String
-  position   String
-  barcode    String       @unique
-  active     Boolean      @default(true)
-  createdAt  DateTime     @default(now())
-  updatedAt  DateTime     @updatedAt
-  attendance Attendance[]
+
+model entradas {
+  id            Int       @id @default(autoincrement())
+  id_empleado   Int
+  hora_entrada  DateTime    
+  fecha_entrada DateTime
 }
 
-model Attendance {
-  id         Int      @id @default(autoincrement())
-  employee   Employee @relation(fields: [employeeId], references: [id])
-  employeeId Int
-  ci         String
-  checkType  String   // 'entrada' | 'salida'
-  checkTime  DateTime @default(now())
-  status     String   // 'a tiempo' | 'tarde' | 'temprano'
-  createdAt  DateTime @default(now())
+model salidas {
+  id            Int       @id @default(autoincrement())
+  id_empleado   Int
+  hora_salida   DateTime    
+  fecha_salida  DateTime
+}
+
+model ParametrosJornada {
+  id                      Int      @id @default(autoincrement())
+  hora_entrada_esperada   String   @default("08:00:00")
+  hora_salida_esperada    String   @default("17:00:00")
+  tolerancia_minutos      Int      @default(10)
+  horas_laborales         Float    @default(8)
+  tiempo_minimo_almuerzo  Int      @default(30)
+  activo                  Boolean  @default(true)
+  fecha_creacion          DateTime @default(now())
+  fecha_actualizacion     DateTime @updatedAt
 }
