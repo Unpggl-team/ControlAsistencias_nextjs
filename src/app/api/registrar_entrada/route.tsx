@@ -71,14 +71,46 @@ export async function POST(request: Request) {
 
         // Obtener la fecha y hora actual de Managua
         const fechaActual = new Date();
-        // Ajustar a la zona horaria de Managua (UTC-6)
-        fechaActual.setHours(fechaActual.getHours() - 6);
+        // Ajustar a la zona horaria de Managua (UTC-6) 
+        const fechaManagua = new Date(fechaActual.getTime() - (6 * 60 * 60 * 1000));
+
+        // Validar si es después de las 12 PM
+        if (fechaManagua.getHours() >= 12) {
+            return NextResponse.json(
+                { message: 'No se pueden registrar entradas después de las 12 PM' },
+                { status: 400 }
+            );
+        }
+
+        // Verificar si ya existe un registro para hoy
+        const inicioDelDia = new Date(fechaManagua);
+        inicioDelDia.setHours(0,0,0,0);
+        
+        const finDelDia = new Date(fechaManagua);
+        finDelDia.setHours(23,59,59,999);
+
+        const registroExistente = await prisma.entradas.findFirst({
+            where: {
+                id_empleado,
+                fecha_entrada: {
+                    gte: inicioDelDia,
+                    lt: finDelDia
+                }
+            }
+        });
+
+        if (registroExistente) {
+            return NextResponse.json(
+                { message: 'Ya registraste tu entrada el día de hoy' },
+                { status: 400 }
+            );
+        }
 
         const entrada = await prisma.entradas.create({
             data: {
                 id_empleado,
-                hora_entrada: fechaActual,
-                fecha_entrada: fechaActual
+                hora_entrada: fechaManagua,
+                fecha_entrada: fechaManagua
             }
         });
 

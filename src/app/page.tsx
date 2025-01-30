@@ -16,6 +16,7 @@ interface ParametrosJornada {
 
 interface JornadaLaboral {
   id_empleado: number;
+  nombre_empleado: string;
   fecha: string;
   hora_entrada: string;
   hora_salida: string;
@@ -29,6 +30,7 @@ interface JornadaLaboral {
 
 interface EstadisticasEmpleado {
   id_empleado: number;
+  nombre_empleado: string;
   total_llegadas_tarde: number;
   total_salidas_temprano: number;
   total_minutos_tarde: number;
@@ -129,33 +131,21 @@ const ProtectedComponent = () => {
                 </tr>
               </thead>
               <tbody>
-                {empleados && empleados.length > 0 ? (
-                  empleados.map((empleado) => {
-                    const stats = estadisticas[empleado.id] || {
-                      dias_trabajados: 0,
-                      dias_jornada_completa: 0,
-                      total_llegadas_tarde: 0,
-                      total_salidas_temprano: 0,
-                      total_minutos_tarde: 0,
-                      total_minutos_temprano: 0,
-                      promedio_horas_trabajadas: 0
-                    };
-
-                    return (
-                      <tr key={empleado.id}>
-                        <td className="px-4 py-2 border">{empleado.nombre}</td>
-                        <td className="px-4 py-2 border text-center">{stats.dias_trabajados}</td>
-                        <td className="px-4 py-2 border text-center">{stats.dias_jornada_completa}</td>
-                        <td className="px-4 py-2 border text-center">{stats.total_llegadas_tarde}</td>
-                        <td className="px-4 py-2 border text-center">{stats.total_salidas_temprano}</td>
-                        <td className="px-4 py-2 border text-center">{stats.total_minutos_tarde}</td>
-                        <td className="px-4 py-2 border text-center">{stats.total_minutos_temprano}</td>
-                        <td className="px-4 py-2 border text-center">
-                          {stats.promedio_horas_trabajadas.toFixed(2)}
-                        </td>
-                      </tr>
-                    );
-                  })
+                {Object.values(estadisticas).length > 0 ? (
+                  Object.values(estadisticas).map((stats) => (
+                    <tr key={stats.id_empleado}>
+                      <td className="px-4 py-2 border">{stats.nombre_empleado}</td>
+                      <td className="px-4 py-2 border text-center">{stats.dias_trabajados}</td>
+                      <td className="px-4 py-2 border text-center">{stats.dias_jornada_completa}</td>
+                      <td className="px-4 py-2 border text-center">{stats.total_llegadas_tarde}</td>
+                      <td className="px-4 py-2 border text-center">{stats.total_salidas_temprano}</td>
+                      <td className="px-4 py-2 border text-center">{stats.total_minutos_tarde}</td>
+                      <td className="px-4 py-2 border text-center">{stats.total_minutos_temprano}</td>
+                      <td className="px-4 py-2 border text-center">
+                        {stats.promedio_horas_trabajadas.toFixed(2)}
+                      </td>
+                    </tr>
+                  ))
                 ) : (
                   <tr>
                     <td colSpan={8} className="px-4 py-2 text-center">
@@ -187,33 +177,30 @@ const ProtectedComponent = () => {
               </thead>
               <tbody>
                 {jornadas && jornadas.length > 0 ? (
-                  jornadas.map((jornada, index) => {
-                    const empleado = empleados?.find(e => e.id === jornada.id_empleado);
-                    return (
-                      <tr key={index}>
-                        <td className="px-4 py-2 border">{empleado?.nombre || 'N/A'}</td>
-                        <td className="px-4 py-2 border">{jornada.fecha}</td>
-                        <td className="px-4 py-2 border">{jornada.hora_entrada}</td>
-                        <td className="px-4 py-2 border">{jornada.hora_salida}</td>
-                        <td className="px-4 py-2 border">
-                          <div className="flex flex-col">
-                            {jornada.llegadaTarde && (
-                              <span className="text-red-500">Llegada Tarde</span>
-                            )}
-                            {jornada.salidaTemprana && (
-                              <span className="text-orange-500">Salida Temprana</span>
-                            )}
-                            {jornada.cumple_jornada && (
-                              <span className="text-green-500">Jornada Completa</span>
-                            )}
-                          </div>
-                        </td>
-                        <td className="px-4 py-2 border text-center">{jornada.minutos_tarde}</td>
-                        <td className="px-4 py-2 border text-center">{jornada.minutos_temprano}</td>
-                        <td className="px-4 py-2 border text-center">{jornada.horas_trabajadas}</td>
-                      </tr>
-                    );
-                  })
+                  jornadas.map((jornada, index) => (
+                    <tr key={index}>
+                      <td className="px-4 py-2 border">{jornada.nombre_empleado}</td>
+                      <td className="px-4 py-2 border">{jornada.fecha}</td>
+                      <td className="px-4 py-2 border">{jornada.hora_entrada}</td>
+                      <td className="px-4 py-2 border">{jornada.hora_salida}</td>
+                      <td className="px-4 py-2 border">
+                        <div className="flex flex-col">
+                          {jornada.llegadaTarde && (
+                            <span className="text-red-500">Llegada Tarde</span>
+                          )}
+                          {jornada.salidaTemprana && (
+                            <span className="text-orange-500">Salida Temprana</span>
+                          )}
+                          {jornada.cumple_jornada && (
+                            <span className="text-green-500">Jornada Completa</span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-4 py-2 border text-center">{jornada.minutos_tarde}</td>
+                      <td className="px-4 py-2 border text-center">{jornada.minutos_temprano}</td>
+                      <td className="px-4 py-2 border text-center">{jornada.horas_trabajadas}</td>
+                    </tr>
+                  ))
                 ) : (
                   <tr>
                     <td colSpan={8} className="px-4 py-2 text-center">

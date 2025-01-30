@@ -28,14 +28,28 @@ model salidas {
   fecha_salida  DateTime
 }
 
+model Estadisticas {
+  id                Int      @id @default(autoincrement())
+  id_empleado      Int
+  fecha            String
+  llegadas_tarde   Int      @default(0)
+  minutos_tarde    Float    @default(0)
+  salidas_temprano Int      @default(0)
+  minutos_temprano Float    @default(0)
+  horas_trabajadas Float    @default(0)
+  created_at       DateTime @default(now())
+  updated_at       DateTime @updatedAt
+
+  @@unique([id_empleado, fecha])
+  @@map("estadisticas")
+}
+
 model ParametrosJornada {
-  id                      Int      @id @default(autoincrement())
-  hora_entrada_esperada   String   @default("08:00:00")
-  hora_salida_esperada    String   @default("17:00:00")
-  tolerancia_minutos      Int      @default(10)
-  horas_laborales         Float    @default(8)
-  tiempo_minimo_almuerzo  Int      @default(30)
-  activo                  Boolean  @default(true)
-  fecha_creacion          DateTime @default(now())
-  fecha_actualizacion     DateTime @updatedAt
+  id                    Int      @id @default(autoincrement())
+  hora_entrada_esperada String
+  hora_salida_esperada  String
+  tolerancia_minutos    Int
+  horas_laborales      Float    @default(8)
+  activo               Boolean  @default(true)
+  fecha_creacion       DateTime @default(now())
 }

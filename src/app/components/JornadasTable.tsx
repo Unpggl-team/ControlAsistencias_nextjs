@@ -26,10 +26,19 @@ interface EstadisticasEmpleado {
 
 const JornadasTable = () => {
     const [jornadas, setJornadas] = useState<JornadaLaboral[]>([]);
+    const [jornadasFiltradas, setJornadasFiltradas] = useState<JornadaLaboral[]>([]);
     const [empleados, setEmpleados] = useState<Empleado[]>([]);
     const [estadisticas, setEstadisticas] = useState<Record<number, EstadisticasEmpleado>>({});
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    
+    // Obtener primer y último día del mes actual
+    const hoy = new Date();
+    const primerDiaMes = new Date(hoy.getFullYear(), hoy.getMonth(), 1);
+    const ultimoDiaMes = new Date(hoy.getFullYear(), hoy.getMonth() + 1, 0);
+    
+    const [fechaInicio, setFechaInicio] = useState(primerDiaMes.toISOString().split('T')[0]);
+    const [fechaFin, setFechaFin] = useState(ultimoDiaMes.toISOString().split('T')[0]);
 
     useEffect(() => {
         const fetchData = async () => {
@@ -45,6 +54,7 @@ const JornadasTable = () => {
                 const empleadosData = await empleadosResponse.json();
                 
                 setJornadas(jornadasData.jornadas);
+                setJornadasFiltradas(jornadasData.jornadas);
                 setEmpleados(empleadosData.data);
                 setEstadisticas(jornadasData.estadisticas);
             } catch (err) {
@@ -57,12 +67,60 @@ const JornadasTable = () => {
         fetchData();
     }, []);
 
+    useEffect(() => {
+        filtrarJornadas();
+    }, [fechaInicio, fechaFin, jornadas]);
+
+    const filtrarJornadas = () => {
+        let jornadasTemp = [...jornadas];
+
+        if (fechaInicio) {
+            jornadasTemp = jornadasTemp.filter(jornada => 
+                new Date(jornada.fecha) >= new Date(fechaInicio)
+            );
+        }
+
+        if (fechaFin) {
+            jornadasTemp = jornadasTemp.filter(jornada => 
+                new Date(jornada.fecha) <= new Date(fechaFin)
+            );
+        }
+
+        setJornadasFiltradas(jornadasTemp);
+    };
+
     if (loading) return <div>Cargando...</div>;
     if (error) return <div>Error: {error}</div>;
 
     return (
         <div className="p-4">
             <h1 className="text-2xl font-bold mb-6">Control de Jornadas Laborales</h1>
+            
+            {/* Filtros de fecha */}
+            <div className="mb-6 flex gap-4">
+                <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Fecha Inicio
+                    </label>
+                    <input
+                        type="date"
+                        value={fechaInicio}
+                        onChange={(e) => setFechaInicio(e.target.value)}
+                        className="border rounded p-2"
+                    />
+                </div>
+                <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Fecha Fin
+                    </label>
+                    <input
+                        type="date"
+                        value={fechaFin}
+                        onChange={(e) => setFechaFin(e.target.value)}
+                        className="border rounded p-2"
+                    />
+                </div>
+            </div>
             
             {/* Tabla de Jornadas */}
             <div className="overflow-x-auto">
@@ -79,7 +137,7 @@ const JornadasTable = () => {
                         </tr>
                     </thead>
                     <tbody>
-                        {jornadas.map((jornada, index) => {
+                        {jornadasFiltradas.map((jornada, index) => {
                             const empleado = empleados.find(e => e.id === jornada.id_empleado);
                             return (
                                 <tr key={index} className={`${jornada.llegadaTarde ? 'bg-red-50' : ''}`}>

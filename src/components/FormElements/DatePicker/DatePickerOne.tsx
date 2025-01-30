@@ -1,20 +1,37 @@
 import flatpickr from "flatpickr";
 import { useEffect } from "react";
+import { Spanish } from "flatpickr/dist/l10n/es";
 
-const DatePickerOne = () => {
+interface DatePickerOneProps {
+  selectedDate: string;
+  onDateChange: (date: string) => void;
+}
+
+const DatePickerOne = ({ selectedDate, onDateChange }: DatePickerOneProps) => {
   useEffect(() => {
     // Init flatpickr
-    flatpickr(".form-datepicker", {
+    const fp = flatpickr(".form-datepicker", {
+      locale: Spanish,
       mode: "single",
       static: true,
       monthSelectorType: "static",
-      dateFormat: "M j, Y",
+      dateFormat: "Y-m-d",
+      defaultDate: selectedDate,
+      onChange: ([date]) => {
+        if (date) {
+          onDateChange(date.toISOString().split('T')[0]);
+        }
+      },
       prevArrow:
         '<svg className="fill-current" width="7" height="11" viewBox="0 0 7 11"><path d="M5.4 10.8l1.4-1.4-4-4 4-4L5.4 0 0 5.4z" /></svg>',
       nextArrow:
         '<svg className="fill-current" width="7" height="11" viewBox="0 0 7 11"><path d="M1.4 10.8L0 9.4l4-4-4-4L1.4 0l5.4 5.4z" /></svg>',
-    });
-  }, []);
+    }) as flatpickr.Instance;
+
+    return () => {
+      fp.destroy();
+    };
+  }, [selectedDate, onDateChange]);
 
   return (
     <div>
@@ -24,8 +41,9 @@ const DatePickerOne = () => {
       <div className="relative">
         <input
           className="form-datepicker w-full rounded border-[1.5px] border-stroke bg-transparent px-5 py-3 font-normal outline-none transition focus:border-primary active:border-primary dark:border-form-strokedark dark:bg-form-input dark:focus:border-primary"
-          placeholder="mm/dd/yyyy"
-          data-class="flatpickr-right"
+          placeholder="Seleccionar fecha"
+          value={selectedDate}
+          readOnly
         />
 
         <div className="pointer-events-none absolute inset-0 left-auto right-5 flex items-center">

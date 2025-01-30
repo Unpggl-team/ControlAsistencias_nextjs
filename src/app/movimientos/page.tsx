@@ -49,10 +49,18 @@ export default function Movimientos() {
       } else {
         setEmpleado(null);
         setError('Empleado no encontrado');
+        // Limpiar mensaje de error después de 3 segundos
+        setTimeout(() => {
+          setError('');
+        }, 3000);
       }
     } catch (error) {
       console.error('Error al buscar empleado:', error);
       setError('Error al buscar empleado');
+      // Limpiar mensaje de error después de 3 segundos
+      setTimeout(() => {
+        setError('');
+      }, 3000);
     }
   };
 
@@ -71,16 +79,16 @@ export default function Movimientos() {
             })
         });
 
-        if (!response.ok) {
-            throw new Error(`Error al registrar ${tipo}`);
-        }
-
         const data = await response.json();
+
+        if (!response.ok) {
+            throw new Error(data.message || `Error al registrar ${tipo}`);
+        }
         
-        // Mostrar mensaje de éxito
-        setMensajeExito(`${tipo.charAt(0).toUpperCase() + tipo.slice(1)} registrada exitosamente`);
+        // Mostrar mensaje de éxito desde la respuesta de la API
+        setMensajeExito(data.message || `${tipo.charAt(0).toUpperCase() + tipo.slice(1)} registrada exitosamente`);
         
-        // Limpiar el formulario después de 2 segundos
+        // Limpiar el formulario después de 3 segundos
         setTimeout(() => {
             setCedula('');
             setEmpleado(null);
@@ -95,7 +103,11 @@ export default function Movimientos() {
 
     } catch (error) {
         console.error(`Error al registrar ${tipo}:`, error);
-        setError(`Error al registrar ${tipo}`);
+        setError(error instanceof Error ? error.message : `Error al registrar ${tipo}`);
+        // Limpiar mensaje de error después de 3 segundos
+        setTimeout(() => {
+          setError('');
+        }, 3000);
     } finally {
         setRegistrando(false);
     }
