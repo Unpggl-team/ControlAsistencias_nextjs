@@ -8,16 +8,21 @@ interface Empleado {
 
 interface JornadaLaboral {
     id_empleado: number;
+    nombre_empleado: string;
     fecha: string;
     hora_entrada: string;
     hora_salida: string;
     llegadaTarde: boolean;
+    salidaTemprana: boolean;
     minutos_tarde: number;
+    minutos_temprano: number;
     horas_trabajadas: number;
+    cumple_jornada: boolean;
 }
 
 interface EstadisticasEmpleado {
     id_empleado: number;
+    nombre_empleado: string;
     total_llegadas_tarde: number;
     total_minutos_tarde: number;
     promedio_horas_trabajadas: number;
