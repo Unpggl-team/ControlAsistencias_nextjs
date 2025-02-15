@@ -16,7 +16,7 @@ export async function GET(): Promise<NextResponse> {
                 }
             }
         });
-
+        console.log(fechaActual);
         return NextResponse.json({
             message: 'Llegadas tarde obtenidas exitosamente',
             llegadasTardeHoy

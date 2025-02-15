@@ -8,6 +8,7 @@ interface Empleado {
   cedula: string;
   id_departamento: number;
   id_cargo: string;
+  inss: string;
 }
 
 interface Departamento {
@@ -40,7 +41,8 @@ export default function Movimientos() {
       const { data } = await response.json();
       
       const empleadoEncontrado = data.find((emp: Empleado) => 
-        emp.cedula.replace(/[-\s]/g, '') === cedula.replace(/[-\s]/g, '')
+        emp.cedula.replace(/[-\s]/g, '') === cedula.replace(/[-\s]/g, '') ||
+        emp.inss === cedula
       );
 
       if (empleadoEncontrado) {

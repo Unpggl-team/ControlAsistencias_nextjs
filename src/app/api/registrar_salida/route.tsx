@@ -78,6 +78,24 @@ export async function POST(request: Request) {
         const fechaActual = new Date();
         // Ajustar a la zona horaria de Managua (UTC-6)
         fechaActual.setHours(fechaActual.getHours() - 6);
+
+        // Verificar si ya existe una salida para este empleado en el día actual
+        const salidaExistente = await prisma.salidas.findFirst({
+            where: {
+                id_empleado: id_empleado,
+                fecha_salida: {
+                    gte: new Date(fechaActual.toISOString().split('T')[0]),
+                    lt: new Date(new Date(fechaActual).setDate(fechaActual.getDate() + 1))
+                }
+            }
+        });
+
+        if (salidaExistente) {
+            return NextResponse.json(
+                { message: 'Ya se registró la salida para este empleado el día de hoy' },
+                { status: 400 }
+            );
+        }
         
         const salida = await prisma.salidas.create({
             data: {

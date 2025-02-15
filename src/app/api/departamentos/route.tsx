@@ -1,11 +1,22 @@
 import { NextResponse } from 'next/server'
+import { cookies } from 'next/headers'
 
 export async function GET() {
     try {
+        const cookieStore = cookies()
+        const token = cookieStore.get('token')?.value
+
+        if (!token) {
+            return NextResponse.json(
+                { message: 'No hay token de autenticación' },
+                { status: 401 }
+            )
+        }
+
         const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/departamento_catalogo`, {
             method: 'POST',
             headers: {
-                'Authorization': 'Bearer 13283|95IQPM9cc2SlYoz49qQCLlcaYoY3XsDi3f7kOrFv',
+                'Authorization': `Bearer ${token}`,
                 'Content-Type': 'application/json',
                 'Accept': 'application/json'
             }
