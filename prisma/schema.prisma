@@ -52,4 +52,17 @@ model ParametrosJornada {
   horas_laborales      Float    @default(8)
   activo               Boolean  @default(true)
   fecha_creacion       DateTime @default(now())
+  empleadosJornada     EmpleadoJornada[]
+}
+
+model EmpleadoJornada {
+  id                 Int              @id @default(autoincrement())
+  id_empleado        Int
+  parametrosJornada  ParametrosJornada @relation(fields: [parametrosJornadaId], references: [id])
+  parametrosJornadaId Int
+  fecha_asignacion   DateTime         @default(now())
+  activo             Boolean          @default(true)
+
+  @@unique([id_empleado, activo])
+  @@map("empleado_jornada")
 }

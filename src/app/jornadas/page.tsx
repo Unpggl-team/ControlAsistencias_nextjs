@@ -27,6 +27,7 @@ interface Registro {
   estado: string;
   minutosTarde?: number;
   horasLaboradas?: string;
+  tiene_jornada_asignada?: boolean;
 }
 
 export default function JornadasPage() {
@@ -60,14 +61,26 @@ export default function JornadasPage() {
     const obtenerRegistros = async () => {
       setIsLoading(true);
       try {
-        const response = await fetch(`/api/jornadas/registro?fecha=${fecha}`);
-        const data = await response.json();
+        // Obtener registros y asignaciones de jornada
+        const [registrosResponse, asignacionesResponse] = await Promise.all([
+          fetch(`/api/jornadas/registro?fecha=${fecha}`),
+          fetch('/api/empleado-jornada')
+        ]);
         
-        const registrosConCalculos = data.data.map((registro: Registro) => {
+        const registrosData = await registrosResponse.json();
+        const asignacionesData = await asignacionesResponse.json();
+        
+        const registrosConCalculos = registrosData.data.map((registro: Registro) => {
           let minutosTarde = 0;
           let horasLaboradas = '';
           
-          if (registro.entrada) {
+          // Verificar si el empleado tiene jornada asignada
+          const tieneJornadaAsignada = asignacionesData.data.some(
+            (asignacion: { id_empleado: number; activo: boolean }) =>
+              asignacion.id_empleado === registro.empleado.id && asignacion.activo
+          );
+          
+          if (registro.entrada && tieneJornadaAsignada) {
             minutosTarde = calcularMinutosTarde(registro.entrada.hora);
             if (registro.salida) {
               horasLaboradas = calcularHorasLaboradas(registro.entrada.hora, registro.salida.hora);
@@ -77,7 +90,8 @@ export default function JornadasPage() {
           return {
             ...registro,
             minutosTarde,
-            horasLaboradas
+            horasLaboradas,
+            tiene_jornada_asignada: tieneJornadaAsignada
           };
         });
         
@@ -158,7 +172,12 @@ export default function JornadasPage() {
                       <p className="text-black dark:text-white">{registro.empleado.id}</p>
                     </td>
                     <td className="p-2.5 text-center xl:p-5">
-                      <p className="text-black dark:text-white">{registro.empleado.nombre}</p>
+                      <div className="flex flex-col items-center">
+                        <p className="text-black dark:text-white">{registro.empleado.nombre}</p>
+                        {!registro.tiene_jornada_asignada && (
+                          <span className="text-warning text-sm">(Sin Jornada Asignada)</span>
+                        )}
+                      </div>
                     </td>
                     <td className="p-2.5 text-center xl:p-5">
                       <p className="text-black dark:text-white">
@@ -178,20 +197,26 @@ export default function JornadasPage() {
                         className={`inline-flex rounded-full bg-opacity-10 py-1 px-3 text-sm font-medium ${
                           registro.estado === 'Completo'
                             ? 'bg-success text-success'
+                            : registro.entrada && !registro.salida
+                            ? 'bg-info text-info'
                             : 'bg-warning text-warning'
                         }`}
                       >
-                        {registro.estado}
+                        {registro.estado === 'Completo'
+                          ? 'Completo'
+                          : registro.entrada && !registro.salida
+                          ? 'En Jornada'
+                          : 'Pendiente'}
                       </span>
                     </td>
                     <td className="p-2.5 text-center xl:p-5">
-                      <p className={`text-sm ${registro.minutosTarde ? 'text-danger' : 'text-success'}`}>
-                        {registro.minutosTarde ? `${registro.minutosTarde}m tarde` : 'A tiempo'}
+                      <p className={`text-sm ${!registro.tiene_jornada_asignada ? 'text-warning' : registro.minutosTarde ? 'text-danger' : 'text-success'}`}>
+                        {!registro.tiene_jornada_asignada ? 'N/A' : registro.minutosTarde ? `${registro.minutosTarde}m tarde` : 'A tiempo'}
                       </p>
                     </td>
                     <td className="p-2.5 text-center xl:p-5">
                       <p className="text-black dark:text-white">
-                        {registro.horasLaboradas || '-'}
+                        {!registro.tiene_jornada_asignada ? 'N/A' : registro.horasLaboradas || '-'}
                       </p>
                     </td>
                   </tr>

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
+import { headers } from 'next/headers';
 
 // Reutilizar la instancia global de PrismaClient
 declare global {
@@ -85,22 +86,28 @@ interface ParametrosJornada {
     horas_laborales: number;
 }
 
+interface EmpleadoJornada {
+    id: number;
+    id_empleado: number;
+    parametrosJornada: ParametrosJornada;
+    parametrosJornadaId: number;
+    fecha_asignacion: Date;
+    activo: boolean;
+}
+
 const globalForPrisma: PrismaGlobal = global as unknown as PrismaGlobal;
 
-// Función para obtener nombre completo del empleado
 function obtenerNombreCompleto(empleado: Empleado): string {
     const nombres = [empleado.name, empleado.segundo_nombre].filter(Boolean).join(' ');
     const apellidos = [empleado.primer_apellido, empleado.segundo_apellido].filter(Boolean).join(' ');
     return `${nombres} ${apellidos}`.trim();
 }
 
-// Función auxiliar para extraer la hora de un DateTime
 function extraerHora(fechaHora: Date): string {
     const horaCompleta: string = fechaHora.toISOString().split('T')[1];
-    return horaCompleta.split('.')[0]; // Obtiene HH:MM:SS
+    return horaCompleta.split('.')[0];
 }
 
-// Función auxiliar para formatear la fecha
 function formatearFecha(fecha: Date): string {
     return fecha.toLocaleDateString('es-ES', {
         day: '2-digit',
@@ -110,14 +117,26 @@ function formatearFecha(fecha: Date): string {
     });
 }
 
-export async function GET(): Promise<NextResponse> {
+export async function GET(request: Request): Promise<NextResponse> {
     try {
         if (!prisma) {
             throw new Error('No se pudo conectar con la base de datos');
         }
 
-        // Obtener lista de empleados
-        const empleadosResponse: Response = await fetch('http://localhost:3000/api/lista_empleados');
+        // Get authorization token from headers
+        const headersList = headers();
+        const token = headersList.get('authorization');
+
+        if (!token) {
+            throw new Error('Token de autorización no proporcionado');
+        }
+
+        const empleadosResponse: Response = await fetch('http://localhost:3000/api/lista_empleados', {
+            headers: {
+                'Authorization': token
+            }
+        });
+
         if (!empleadosResponse.ok) {
             throw new Error('Error al obtener la lista de empleados');
         }
@@ -128,23 +147,48 @@ export async function GET(): Promise<NextResponse> {
         }
         
         const empleados: Empleado[] = empleadosData.data;
-
-        const parametrosJornada: ParametrosJornada | null = await prisma.parametrosJornada.findFirst({
+        
+        // Rest of the code remains the same...
+        const asignacionesJornada = await prisma.empleadoJornada.findMany({
             where: { activo: true },
-            orderBy: { fecha_creacion: 'desc' },
-            select: {
-                hora_entrada_esperada: true,
-                hora_salida_esperada: true,
-                tolerancia_minutos: true,
-                horas_laborales: true,
+            include: {
+                parametrosJornada: true
+            },
+            orderBy: {
+                fecha_asignacion: 'desc'
             }
         });
+        
+        const parametrosJornadaPorEmpleado = new Map<string, ParametrosJornada>();
+        
+        asignacionesJornada.forEach((asignacion) => {
+            const fechaAsignacion = new Date(asignacion.fecha_asignacion).toISOString().split('T')[0];
+            const key = `${asignacion.id_empleado}-${fechaAsignacion}`;
+            
+            if (!parametrosJornadaPorEmpleado.has(key)) {
+                parametrosJornadaPorEmpleado.set(key, {
+                    hora_entrada_esperada: asignacion.parametrosJornada.hora_entrada_esperada,
+                    hora_salida_esperada: asignacion.parametrosJornada.hora_salida_esperada,
+                    tolerancia_minutos: asignacion.parametrosJornada.tolerancia_minutos,
+                    horas_laborales: asignacion.parametrosJornada.horas_laborales
+                });
+            }
+        });
+        
+        const obtenerParametrosJornada = (idEmpleado: number, fecha: string): ParametrosJornada | null => {
+            const asignacionesEmpleado = Array.from(parametrosJornadaPorEmpleado.entries())
+                .filter(([key]) => key.startsWith(`${idEmpleado}-`))
+                .sort(([keyA], [keyB]) => keyB.split('-')[1].localeCompare(keyA.split('-')[1]));
 
-        if (!parametrosJornada) {
-            throw new Error('No se encontraron parámetros de jornada activos');
-        }
+            const asignacionValida = asignacionesEmpleado.find(([key]) => {
+                const fechaAsignacion = key.split('-')[1];
+                return fechaAsignacion <= fecha;
+            });
 
-        const entradas: Entrada[] = await prisma.entradas.findMany({
+            return asignacionValida ? asignacionValida[1] : null;
+        };
+
+        const entradas = await prisma.entradas.findMany({
             select: {
                 id_empleado: true,
                 hora_entrada: true,
@@ -152,7 +196,7 @@ export async function GET(): Promise<NextResponse> {
             }
         });
 
-        const salidas: Salida[] = await prisma.salidas.findMany({
+        const salidas = await prisma.salidas.findMany({
             select: {
                 id_empleado: true,
                 hora_salida: true,
@@ -160,75 +204,71 @@ export async function GET(): Promise<NextResponse> {
             }
         });
 
-        const jornadas: JornadaLaboral[] = [];
-        const jornadasPorEmpleado: Map<string, JornadaLaboral> = new Map();
+        const jornadasPorEmpleado = new Map<string, JornadaLaboral>();
+        const fechaActual = new Date().toISOString().split('T')[0];
+        let llegadasTardeHoy = 0;
 
-        // Obtener la fecha actual en formato YYYY-MM-DD
-        const fechaActual: string = new Date().toISOString().split('T')[0];
-        let llegadasTardeHoy: number = 0;
-
-        entradas.forEach((entrada: Entrada): void => {
+        entradas.forEach((entrada) => {
             if (!entrada.fecha_entrada || !entrada.hora_entrada) return;
 
-            const empleado: Empleado | undefined = empleados?.find((emp: Empleado) => emp.id === entrada.id_empleado);
-            const nombreEmpleado: string = empleado ? obtenerNombreCompleto(empleado) : 'Empleado no encontrado';
+            const empleado = empleados?.find(emp => emp.id === entrada.id_empleado);
+            if (!empleado) return;
 
-            const fechaEntrada: Date = new Date(entrada.fecha_entrada);
-            const horaEntrada: string = extraerHora(new Date(entrada.hora_entrada));
-            const fechaKey: string = fechaEntrada.toISOString().split('T')[0];
+            const nombreEmpleado = obtenerNombreCompleto(empleado);
+            const fechaEntrada = new Date(entrada.fecha_entrada);
+            const horaEntrada = extraerHora(new Date(entrada.hora_entrada));
+            const fechaKey = fechaEntrada.toISOString().split('T')[0];
             
-            // Calcular si llegó tarde usando la hora exacta de la BD
-            const [horaRealHH, horaRealMM]: number[] = horaEntrada.split(':').map(Number);
-            const [horaEsperadaHH, horaEsperadaMM]: number[] = parametrosJornada.hora_entrada_esperada.split(':').map(Number);
-            
-            const minutosReales: number = horaRealHH * 60 + horaRealMM;
-            const minutosEsperados: number = horaEsperadaHH * 60 + horaEsperadaMM;
-            const minutosTarde: number = Math.max(0, minutosReales - (minutosEsperados + parametrosJornada.tolerancia_minutos));
-            
-            const llegadaTarde: boolean = minutosTarde > 0;
+            const parametrosJornada = obtenerParametrosJornada(entrada.id_empleado, fechaKey);
+            if (!parametrosJornada) return;
 
-            // Incrementar contador de llegadas tarde para el día actual
+            const [horaRealHH, horaRealMM] = horaEntrada.split(':').map(Number);
+            const [horaEsperadaHH, horaEsperadaMM] = parametrosJornada.hora_entrada_esperada.split(':').map(Number);
+            
+            const minutosReales = horaRealHH * 60 + horaRealMM;
+            const minutosEsperados = horaEsperadaHH * 60 + horaEsperadaMM;
+            const minutosTarde = Math.max(0, minutosReales - (minutosEsperados + parametrosJornada.tolerancia_minutos));
+            
+            const llegadaTarde = minutosTarde > 0;
+
             if (llegadaTarde && fechaKey === fechaActual) {
                 llegadasTardeHoy++;
             }
 
-            // Buscar la salida correspondiente
-            const salidaCorrespondiente: Salida | undefined = salidas.find((salida: Salida) => 
+            const salidaCorrespondiente = salidas.find(salida => 
                 salida.id_empleado === entrada.id_empleado && 
                 new Date(salida.fecha_salida).toISOString().split('T')[0] === fechaKey
             );
 
-            const jornadaKey: string = `${entrada.id_empleado}-${fechaKey}`;
+            const jornadaKey = `${entrada.id_empleado}-${fechaKey}`;
             
-            let horasTrabajadas: number = 0;
-            let horaSalida: string = 'Sin registro';
-            let minutosTemprano: number = 0;
-            let salidaTemprana: boolean = false;
+            let horasTrabajadas = 0;
+            let horaSalida = 'Sin registro';
+            let minutosTemprano = 0;
+            let salidaTemprana = false;
 
             if (salidaCorrespondiente?.hora_salida) {
                 horaSalida = extraerHora(new Date(salidaCorrespondiente.hora_salida));
                 
-                // Calcular horas trabajadas usando las horas exactas
-                const [horaSalidaHH, horaSalidaMM, horaSalidaSS]: number[] = horaSalida.split(':').map(Number);
-                const [horaEntradaHH, horaEntradaMM, horaEntradaSS]: number[] = horaEntrada.split(':').map(Number);
+                const [horaSalidaHH, horaSalidaMM] = horaSalida.split(':').map(Number);
+                const [horaEntradaHH, horaEntradaMM] = horaEntrada.split(':').map(Number);
                 
-                const minutosTotales: number = 
+                const minutosTotales = 
                     (horaSalidaHH * 60 + horaSalidaMM) - 
                     (horaEntradaHH * 60 + horaEntradaMM);
                 
                 horasTrabajadas = Number((minutosTotales / 60).toFixed(2));
-
-                // Calcular si salió temprano
-                const [horaSalidaEsperadaHH, horaSalidaEsperadaMM]: number[] = parametrosJornada.hora_salida_esperada.split(':').map(Number);
                 
-                const minutosSalidaEsperados: number = horaSalidaEsperadaHH * 60 + horaSalidaEsperadaMM;
-                const minutosSalidaReales: number = horaSalidaHH * 60 + horaSalidaMM;
+                const [horaSalidaEsperadaHH, horaSalidaEsperadaMM] = parametrosJornada.hora_salida_esperada.split(':').map(Number);
+                
+                const minutosSalidaEsperados = horaSalidaEsperadaHH * 60 + horaSalidaEsperadaMM;
+                const minutosSalidaReales = horaSalidaHH * 60 + horaSalidaMM;
                 
                 minutosTemprano = Math.max(0, minutosSalidaEsperados - minutosSalidaReales);
                 salidaTemprana = minutosTemprano > parametrosJornada.tolerancia_minutos;
             }
-
-            const cumpleJornada: boolean = horasTrabajadas >= parametrosJornada.horas_laborales && 
+            
+            const cumpleJornada = horasTrabajadas >= parametrosJornada.horas_laborales && 
                                 !llegadaTarde && 
                                 !salidaTemprana;
 
@@ -247,13 +287,12 @@ export async function GET(): Promise<NextResponse> {
             });
         });
 
-        // Calcular estadísticas por empleado
         const estadisticasPorEmpleado: Record<number, EstadisticasEmpleado> = {};
 
         jornadasPorEmpleado.forEach((jornada: JornadaLaboral): void => {
             if (!estadisticasPorEmpleado[jornada.id_empleado]) {
-                const empleado: Empleado | undefined = empleados?.find((emp: Empleado) => emp.id === jornada.id_empleado);
-                const nombreEmpleado: string = empleado ? obtenerNombreCompleto(empleado) : 'Empleado no encontrado';
+                const empleado = empleados?.find(emp => emp.id === jornada.id_empleado);
+                const nombreEmpleado = empleado ? obtenerNombreCompleto(empleado) : 'Empleado no encontrado';
 
                 estadisticasPorEmpleado[jornada.id_empleado] = {
                     id_empleado: jornada.id_empleado,
@@ -268,21 +307,22 @@ export async function GET(): Promise<NextResponse> {
                 };
             }
 
-            const stats: EstadisticasEmpleado = estadisticasPorEmpleado[jornada.id_empleado];
+            const stats = estadisticasPorEmpleado[jornada.id_empleado];
             if (jornada.llegadaTarde) stats.total_llegadas_tarde++;
             if (jornada.salidaTemprana) stats.total_salidas_temprano++;
             stats.total_minutos_tarde += jornada.minutos_tarde;
             stats.total_minutos_temprano += jornada.minutos_temprano;
             if (jornada.cumple_jornada) stats.dias_jornada_completa++;
-            stats.promedio_horas_trabajadas = 
-                ((stats.promedio_horas_trabajadas * stats.dias_trabajados) + jornada.horas_trabajadas) / 
-                (stats.dias_trabajados + 1);
+            
+            const totalHorasAnteriores = stats.promedio_horas_trabajadas * stats.dias_trabajados;
+            const nuevasHorasTrabajadas = jornada.horas_trabajadas;
+            stats.promedio_horas_trabajadas = Number(((totalHorasAnteriores + nuevasHorasTrabajadas) / (stats.dias_trabajados + 1)).toFixed(2));
             stats.dias_trabajados++;
         });
 
         return NextResponse.json({
             message: 'Jornadas procesadas exitosamente',
-            parametros_jornada: parametrosJornada,
+            asignaciones_jornada: asignacionesJornada,
             jornadas: Array.from(jornadasPorEmpleado.values()),
             estadisticas: estadisticasPorEmpleado,
             llegadasTardeHoy: llegadasTardeHoy

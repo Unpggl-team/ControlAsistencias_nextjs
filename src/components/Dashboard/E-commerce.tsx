@@ -60,9 +60,19 @@ const ECommerce: React.FC = () => {
   useEffect(() => {
     const fetchData = async () => {
       try {
+        // Get auth token from cookies
+        const token = document.cookie
+          .split('; ')
+          .find(row => row.startsWith('token='))
+          ?.split('=')[1];
+
+        const headers = {
+          'Authorization': `Bearer ${token}`
+        };
+
         const [empleadosRes, jornadasRes] = await Promise.all([
-          fetch('/api/lista_empleados'),
-          fetch('/api/jornadas')
+          fetch('/api/lista_empleados', { headers }),
+          fetch('/api/jornadas', { headers })
         ]);
 
         if (!empleadosRes.ok || !jornadasRes.ok) {
@@ -139,14 +149,8 @@ const ECommerce: React.FC = () => {
         <div className="col-span-12">
           <JornadasTable />
         </div>
-        {/*<ChartOne />
-        <ChartTwo />
-        <ChartThree />
-        <MapOne />
-        <div className="col-span-12 xl:col-span-8">
-          <TableOne />
-        </div>
-        <ChatCard />*/}
+
+       
       </div>
     </>
   );

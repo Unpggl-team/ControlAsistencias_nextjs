@@ -25,9 +25,9 @@ export async function GET() {
         if (!response.ok) {
             throw new Error(`Error HTTP: ${response.status}`);
         }
-        console.log(process.env.NEXT_PUBLIC_API_BASE_URL);
+        //console.log(process.env.NEXT_PUBLIC_API_BASE_URL);
         const data = await response.json();
-        console.log(data);
+        //console.log(data);
         return NextResponse.json({ message: 'Departamentos obtenidos exitosamente', data });
         
     } catch (error) {

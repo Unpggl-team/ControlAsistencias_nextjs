@@ -9,6 +9,12 @@ interface Empleado {
   id_departamento: number;
   id_cargo: string;
   inss: string;
+  tiene_jornada_asignada?: boolean;
+}
+
+interface Cargo {
+  id_cargo: string;
+  cargo: string;
 }
 
 interface Departamento {
@@ -22,6 +28,7 @@ export default function Movimientos() {
   const [empleado, setEmpleado] = useState<Empleado | null>(null);
   const [error, setError] = useState<string>('');
   const [departamentos, setDepartamentos] = useState<Departamento[]>([]);
+  const [cargos, setCargos] = useState<Cargo[]>([]);
   const [registrando, setRegistrando] = useState(false);
   const [mensajeExito, setMensajeExito] = useState<string>('');
 
@@ -29,29 +36,61 @@ export default function Movimientos() {
     try {
       const response = await fetch('/api/departamentos');
       const { data } = await response.json();
-      setDepartamentos(data);
+      setDepartamentos(data || []);
     } catch (error) {
       console.error('Error al obtener departamentos:', error);
+      setDepartamentos([]);
     }
   };
 
   const buscarEmpleado = async (): Promise<void> => {
     try {
-      const response = await fetch('/api/lista_empleados');
-      const { data } = await response.json();
+      const token = document.cookie.split('; ').find(row => row.startsWith('token='))?.split('=')[1];
+      const [empleadosResponse, asignacionesResponse, jornadaResponse] = await Promise.all([
+        fetch('/api/lista_empleados', {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        }),
+        fetch('/api/empleado-jornada'),
+        fetch(`/api/jornadas/registro?fecha=${new Date().toISOString().split('T')[0]}`)
+      ]);
       
-      const empleadoEncontrado = data.find((emp: Empleado) => 
+      const empleadosData = await empleadosResponse.json();
+      const asignacionesData = await asignacionesResponse.json();
+      const jornadaData = await jornadaResponse.json();
+      
+      const empleadoEncontrado = empleadosData.data.find((emp: Empleado) => 
         emp.cedula.replace(/[-\s]/g, '') === cedula.replace(/[-\s]/g, '') ||
         emp.inss === cedula
       );
 
       if (empleadoEncontrado) {
-        setEmpleado(empleadoEncontrado);
+        const tieneJornadaAsignada = asignacionesData.data.some(
+          (asignacion: { id_empleado: number; activo: boolean }) =>
+            asignacion.id_empleado === empleadoEncontrado.id && asignacion.activo
+        );
+
+        const registroHoy = jornadaData.data.find(
+          (registro: { empleado: { id: number }; entrada: any; salida: any }) =>
+            registro.empleado.id === empleadoEncontrado.id
+        );
+        
+        setEmpleado({
+          ...empleadoEncontrado,
+          tiene_jornada_asignada: tieneJornadaAsignada,
+          estado: registroHoy
+            ? registroHoy.salida
+              ? 'Completo'
+              : registroHoy.entrada
+              ? 'En Jornada'
+              : 'Pendiente'
+            : 'Pendiente'
+        });
         setError('');
       } else {
         setEmpleado(null);
         setError('Empleado no encontrado');
-        // Limpiar mensaje de error después de 3 segundos
         setTimeout(() => {
           setError('');
         }, 3000);
@@ -59,7 +98,6 @@ export default function Movimientos() {
     } catch (error) {
       console.error('Error al buscar empleado:', error);
       setError('Error al buscar empleado');
-      // Limpiar mensaje de error después de 3 segundos
       setTimeout(() => {
         setError('');
       }, 3000);
@@ -68,6 +106,12 @@ export default function Movimientos() {
 
   const registrarMovimiento = async (tipo: 'entrada' | 'salida') => {
     if (!empleado) return;
+    
+    if (!empleado.tiene_jornada_asignada) {
+      setError('No se puede registrar movimiento. El empleado no tiene una jornada asignada.');
+      setTimeout(() => setError(''), 3000);
+      return;
+    }
     
     setRegistrando(true);
     try {
@@ -87,33 +131,27 @@ export default function Movimientos() {
             throw new Error(data.message || `Error al registrar ${tipo}`);
         }
         
-        // Mostrar mensaje de éxito desde la respuesta de la API
         setMensajeExito(data.message || `${tipo.charAt(0).toUpperCase() + tipo.slice(1)} registrada exitosamente`);
+    } catch (error) {
+        console.error(`Error al registrar ${tipo}:`, error);
+        setError(error instanceof Error ? error.message : `Error al registrar ${tipo}`);
+    } finally {
+        setRegistrando(false);
+        setCedula('');
+        setEmpleado(null);
         
-        // Limpiar el formulario después de 3 segundos
+        // Limpiar mensajes después de 3 segundos
         setTimeout(() => {
-            setCedula('');
-            setEmpleado(null);
+            setError('');
             setMensajeExito('');
             
-            // Enfocar el input
             const input = document.getElementById('cedula-input');
             if (input) {
                 input.focus();
             }
         }, 3000);
-
-    } catch (error) {
-        console.error(`Error al registrar ${tipo}:`, error);
-        setError(error instanceof Error ? error.message : `Error al registrar ${tipo}`);
-        // Limpiar mensaje de error después de 3 segundos
-        setTimeout(() => {
-          setError('');
-        }, 3000);
-    } finally {
-        setRegistrando(false);
     }
-  };
+};
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>): void => {
     setCedula(e.target.value);
@@ -130,9 +168,31 @@ export default function Movimientos() {
       input.focus();
     }
     obtenerDepartamentos();
+    obtenerCargos();
   }, []);
 
-  const getNombreDepartamento = (value: number) => {
+const obtenerCargos = async () => {
+  try {
+    const token = document.cookie.split('; ').find(row => row.startsWith('token='))?.split('=')[1];
+    const response = await fetch('/api/obtenerCargos', {
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    });
+    const { data } = await response.json();
+    setCargos(data);
+  } catch (error) {
+    console.error('Error al obtener cargos:', error);
+    setCargos([]);
+  }
+};
+
+const getNombreCargo = (id: string): string => {
+  const cargo = cargos.find(c => c.id_cargo === id);
+  return cargo ? cargo.cargo : id;
+};
+  const getNombreDepartamento = (value: number): string | number => {
+    if (!departamentos || departamentos.length === 0) return value;
     const departamento = departamentos.find(dep => dep.value === value);
     return departamento ? departamento.option : value;
   };
@@ -152,6 +212,7 @@ export default function Movimientos() {
                 placeholder="Escanee o ingrese el número de cédula"
                 value={cedula}
                 onChange={handleInputChange}
+                maxLength={14}
                 className="w-full rounded border-[1.5px] border-stroke bg-transparent py-3 px-5 font-medium outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:focus:border-primary"
                 autoComplete="off"
               />
@@ -176,19 +237,28 @@ export default function Movimientos() {
               <p><strong>Nombre:</strong> {empleado.name} {empleado.primer_apellido}</p>
               <p><strong>Cédula:</strong> {empleado.cedula}</p>
               <p><strong>Departamento:</strong> {getNombreDepartamento(empleado.id_departamento)}</p>
-              <p><strong>Cargo:</strong> {empleado.id_cargo}</p>
-              
+              <p><strong>Cargo:</strong> {getNombreCargo(empleado.id_cargo)}</p>
+              <p><strong>Estado:</strong> 
+                <span className={`inline-flex rounded-full bg-opacity-10 py-1 px-3 text-sm font-medium ${(empleado as any).estado === 'Completo' ? 'bg-success text-success' : (empleado as any).estado === 'En Jornada' ? 'bg-info text-info' : 'bg-warning text-warning'}`}>
+                  {(empleado as any).estado}
+                </span>
+              </p>
+              {!empleado.tiene_jornada_asignada && (
+                <div className="mt-2 p-2 bg-warning/20 text-warning rounded">
+                  <p className="text-sm">⚠️ Este empleado no tiene una jornada asignada. No se pueden registrar movimientos.</p>
+                </div>
+              )}
               <div className="mt-4 flex gap-4">
                 <button
                   onClick={() => registrarMovimiento('entrada')}
-                  disabled={registrando}
+                  disabled={registrando || !empleado.tiene_jornada_asignada}
                   className="py-2 px-4 bg-success text-white rounded hover:bg-success/80 transition-colors disabled:opacity-50"
                 >
                   {registrando ? 'Registrando...' : 'Registrar Entrada'}
                 </button>
                 <button
                   onClick={() => registrarMovimiento('salida')}
-                  disabled={registrando}
+                  disabled={registrando || !empleado.tiene_jornada_asignada}
                   className="py-2 px-4 bg-danger text-white rounded hover:bg-danger/80 transition-colors disabled:opacity-50"
                 >
                   {registrando ? 'Registrando...' : 'Registrar Salida'}

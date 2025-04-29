@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
+import { cookies } from 'next/headers'
 
 // Mejor manejo de la instancia de PrismaClient
 const globalForPrisma = global as unknown as {
@@ -227,12 +228,30 @@ export async function POST(request: Request) {
 
 export async function GET(request: Request) {
   try {
+    // Obtener el token de la cookie
+    const cookieStore = cookies();
+    const token = cookieStore.get('token');
+
+    if (!token) {
+      return NextResponse.json(
+        { message: 'No hay token de autenticación, debe de iniciar sesión en el sistema' },
+        { status: 401 }
+      );
+    }
+
     const { searchParams } = new URL(request.url);
     const fecha = searchParams.get('fecha') || new Date().toISOString().split('T')[0];
 
     // Obtener empleados de la API externa
-    const empleadosResponse = await fetch(`${process.env.NEXT_PUBLIC_PROYECTO_URL_API}/lista_empleados`);
+    const empleadosResponse = await fetch(`${process.env.NEXT_PUBLIC_PROYECTO_URL_API}/lista_empleados`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token.value}`,
+        'Content-Type': 'application/json'
+      }
+    });
     const empleadosData = await empleadosResponse.json();
+    
     const todosEmpleados: Empleado[] = empleadosData.data;
 
     // Obtener registros de entrada y salida de Prisma
@@ -257,14 +276,13 @@ export async function GET(request: Request) {
       })
     ]);
 
-    // Filtrar empleados que tienen tanto entrada como salida
-    const empleadosConRegistrosCompletos = todosEmpleados.filter(empleado => {
+    // Filtrar empleados que tienen entrada (sin requerir salida)
+    const empleadosConRegistros = todosEmpleados.filter(empleado => {
       const tieneEntrada = entradas.some(e => e.id_empleado === empleado.id);
-      const tieneSalida = salidas.some(s => s.id_empleado === empleado.id);
-      return tieneEntrada && tieneSalida;
+      return tieneEntrada;
     });
 
-    const registrosPorEmpleado: RegistroEmpleado[] = empleadosConRegistrosCompletos.map(empleado => {
+    const registrosPorEmpleado: RegistroEmpleado[] = empleadosConRegistros.map(empleado => {
       const entrada = entradas.find(e => e.id_empleado === empleado.id);
       const salida = salidas.find(s => s.id_empleado === empleado.id);
 
@@ -285,14 +303,14 @@ export async function GET(request: Request) {
           hora: salida.hora_salida.toISOString().split('T')[1].substring(0, 8),
           fecha: salida.fecha_salida.toISOString().split('T')[0]
         } : null,
-        estado: 'Completo'
+        estado: salida ? 'Completo' : 'Pendiente Salida'
       };
     });
 
     return NextResponse.json({
       message: 'Registros obtenidos exitosamente',
       data: registrosPorEmpleado,
-      total_empleados: empleadosConRegistrosCompletos.length,
+      total_empleados: empleadosConRegistros.length,
       total_registros: registrosPorEmpleado.length
     });
 

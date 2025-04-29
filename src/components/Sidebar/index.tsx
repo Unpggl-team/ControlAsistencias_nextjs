@@ -1,6 +1,5 @@
 "use client";
 
-import { usePathname } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
 import SidebarItem from "@/components/Sidebar/SidebarItem";
@@ -38,6 +37,21 @@ const menuGroups = [
         icon: <FiUser size={18} className="fill-current" />,
         label: "Empleados Por CUR",
         route: "/empleados_cur",
+      },
+      {
+        icon: <FiUser size={18} className="fill-current" />,
+        label: "Jornadas Por Fecha",
+        route: "/jornadas",
+      },
+      {
+        icon: <FiUser size={18} className="fill-current" />,
+        label: "Asignar Jornadas",
+        route: "/asignar-jornada",
+      },
+      {
+        icon: <FiUser size={18} className="fill-current" />,
+        label: "Agregar Nuevo Parametro de Jornada",
+        route: "/parametros-jornada",
       }
     ],
   }

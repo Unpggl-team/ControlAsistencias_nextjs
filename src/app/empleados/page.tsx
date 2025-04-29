@@ -28,7 +28,12 @@ export default function Empleados() {
   useEffect(() => {
     const fetchEmpleados = async () => {
       try {
-        const response = await fetch('/api/lista_empleados');
+        const token = document.cookie.split('; ').find(row => row.startsWith('token='))?.split('=')[1];
+        const response = await fetch('/api/lista_empleados', {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
         const { data } = await response.json();
         
         // Transformar los datos al formato requerido
