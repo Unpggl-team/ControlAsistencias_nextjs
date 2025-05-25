@@ -3,6 +3,8 @@ import type { NextRequest } from 'next/server'
 
 // Definimos un array con todas las rutas públicas
 const publicRoutes = [
+  '/',
+  '/empleados',
   '/movimientos',
   '/api/departamentos',
   '/api/lista_empleados',
