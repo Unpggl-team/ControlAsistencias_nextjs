@@ -32,9 +32,18 @@ export default function Movimientos() {
   const [registrando, setRegistrando] = useState(false);
   const [mensajeExito, setMensajeExito] = useState<string>('');
 
+  const userdata = localStorage.getItem('user');
+  const token = userdata ? JSON.parse(userdata).token : '';
+
+
   const obtenerDepartamentos = async () => {
     try {
-      const response = await fetch('/api/departamentos');
+    
+      const response = await fetch('/api/departamentos', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
       const { data } = await response.json();
       setDepartamentos(data || []);
     } catch (error) {
@@ -45,15 +54,23 @@ export default function Movimientos() {
 
   const buscarEmpleado = async (): Promise<void> => {
     try {
-      const token = document.cookie.split('; ').find(row => row.startsWith('token='))?.split('=')[1];
+      
       const [empleadosResponse, asignacionesResponse, jornadaResponse] = await Promise.all([
         fetch('/api/lista_empleados', {
           headers: {
             'Authorization': `Bearer ${token}`
           }
         }),
-        fetch('/api/empleado-jornada'),
-        fetch(`/api/jornadas/registro?fecha=${new Date().toISOString().split('T')[0]}`)
+        fetch('/api/empleado-jornada', {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        }),
+        fetch(`/api/jornadas/registro?fecha=${new Date().toISOString().split('T')[0]}`, {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        })
       ]);
       
       const empleadosData = await empleadosResponse.json();
@@ -173,7 +190,8 @@ export default function Movimientos() {
 
 const obtenerCargos = async () => {
   try {
-    const token = document.cookie.split('; ').find(row => row.startsWith('token='))?.split('=')[1];
+    const userdata = localStorage.getItem('user');
+      const token = userdata ? JSON.parse(userdata).token : '';
     const response = await fetch('/api/obtenerCargos', {
       headers: {
         'Authorization': `Bearer ${token}`

@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import Breadcrumb from '@/components/Breadcrumbs/Breadcrumb';
 import { Toaster, toast } from 'react-hot-toast';
 import DefaultLayout from '@/components/Layouts/DefaultLayout';
+import { headers } from 'next/headers';
 type Departamento = {
   value: number;
   option: string;
@@ -56,8 +57,8 @@ export default function AsignarJornada() {
       try {
         setLoading(true);
         // Obtener empleados
-const token = document.cookie.split('; ').find(row => row.startsWith('token='))?.split('=')[1];
-const empleadosResponse = await fetch('/api/lista_empleados', {
+  const usuario = localStorage.getItem('user');
+        const token = usuario ? JSON.parse(usuario).token : null;const empleadosResponse = await fetch('/api/lista_empleados', {
   headers: {
     'Authorization': `Bearer ${token}`
   }
@@ -66,7 +67,11 @@ const empleadosResponse = await fetch('/api/lista_empleados', {
         const empleadosData = await empleadosResponse.json();
         
         // Obtener departamentos
-        const departamentosResponse = await fetch('/api/departamentos');
+        const departamentosResponse = await fetch('/api/departamentos' , {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
         if (!departamentosResponse.ok) throw new Error('Error al cargar los departamentos');
         const departamentosData = await departamentosResponse.json();
         setDepartamentos(departamentosData.data);

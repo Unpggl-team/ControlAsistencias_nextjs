@@ -1,7 +1,6 @@
 "use client";
 import { createContext, useState, useContext, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import Cookies from 'js-cookie';
 
 interface User {
   nombres: string;
@@ -32,13 +31,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     checkAuth();
-  }, []);
+  },[]);
 
   const checkAuth = () => {
-    const token = Cookies.get('token');
     const storedUser = localStorage.getItem('user');
     
-    if (token && storedUser) {
+    if (storedUser) {
       try {
         const userData = JSON.parse(storedUser);
         setUser(userData);
@@ -80,9 +78,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         token: data.token
       };
 
-      // Guardar token en cookie y datos del usuario en localStorage
+      // Guardar token y datos del usuario en localStorage
       console.log(userData);
-      Cookies.set('token', data.token, { expires: 7 }); // Cookie expira en 7 días
       localStorage.setItem('user', JSON.stringify(userData));
       
       setUser(userData);
@@ -96,7 +93,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const handleLogout = () => {
-    Cookies.remove('token');
     localStorage.removeItem('user');
     setUser(null);
     setIsAuthenticated(false);

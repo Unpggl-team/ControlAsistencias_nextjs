@@ -1,5 +1,5 @@
 "use client";
-import ECommerce from "@/components/Dashboard/E-commerce";
+import Home from "@/components/Dashboard/Home";
 import { Metadata } from "next";
 import DefaultLayout from "@/components/Layouts/DefaultLayout";
 import { useAuth } from '@/contexts/AuthContext';
@@ -28,7 +28,7 @@ const ProtectedComponent = () => {
           ¡Bienvenido, {user?.nombres}!
         </h2>
       </div>
-      <ECommerce />
+      <Home />
       
     </DefaultLayout>
   );

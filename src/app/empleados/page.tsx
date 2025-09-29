@@ -15,20 +15,18 @@ export default function Empleados() {
   const { isAuthenticated, user } = useAuth();
   const router = useRouter();
 
+ 
+
   useEffect(() => {
+
     if (!isAuthenticated) {
       router.push('/auth/signin');
     }
-  }, [isAuthenticated, router]);
 
-  if (!isAuthenticated) {
-    return null;
-  }
-
-  useEffect(() => {
     const fetchEmpleados = async () => {
       try {
-        const token = document.cookie.split('; ').find(row => row.startsWith('token='))?.split('=')[1];
+        const usuario = localStorage.getItem('user');
+        const token = usuario ? JSON.parse(usuario).token : null;
         const response = await fetch('/api/lista_empleados', {
           headers: {
             'Authorization': `Bearer ${token}`
@@ -56,8 +54,11 @@ export default function Empleados() {
     };
 
     fetchEmpleados();
-  }, []);
-
+  }, [isAuthenticated, router]);
+  
+ if (!isAuthenticated) {
+    return null;
+  }
   // Filtrar empleados según término de búsqueda
   const filteredEmpleados = empleados.filter((empleado: {
     nombre: string;

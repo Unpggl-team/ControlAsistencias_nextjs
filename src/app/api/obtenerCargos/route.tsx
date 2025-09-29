@@ -1,10 +1,8 @@
 import { NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
 
 export async function GET(request: Request) {
     try {
-        // Validate authorization header
-        const authHeader = request.headers.get('Authorization');
+         const authHeader = request.headers.get('Authorization');
         if (!authHeader || !authHeader.startsWith('Bearer ')) {
             return NextResponse.json(
                 { message: 'No hay token de autenticación' },
@@ -13,7 +11,7 @@ export async function GET(request: Request) {
         }
 
         const token = authHeader.split(' ')[1];
-
+        console.log("Probando token:", token);
         // Validate API base URL
         if (!process.env.NEXT_PUBLIC_API_BASE_URL) {
             throw new Error('API base URL is not configured');

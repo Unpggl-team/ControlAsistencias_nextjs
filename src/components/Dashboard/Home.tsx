@@ -1,4 +1,3 @@
-"use client";
 import dynamic from "next/dynamic";
 import React, { useState, useEffect } from "react";
 import ChartOne from "../Charts/ChartOne";
@@ -6,7 +5,7 @@ import ChartTwo from "../Charts/ChartTwo";
 import ChatCard from "../Chat/ChatCard";
 import TableOne from "../Tables/TableOne";
 import CardDataStats from "../CardDataStats";
-import { FaUsers, FaEye, FaShoppingCart, FaBox, FaClock, FaExclamationTriangle } from 'react-icons/fa';
+import { FaUsers, FaClock, FaExclamationTriangle } from 'react-icons/fa';
 import JornadasTable from "@/app/components/JornadasTable";
 
 interface ParametrosJornada {
@@ -50,7 +49,7 @@ const ChartThree = dynamic(() => import("@/components/Charts/ChartThree"), {
   ssr: false,
 });
 
-const ECommerce: React.FC = () => {
+export default function Home() {
   const [empleados, setEmpleados] = useState<any[]>([]);
   const [jornadas, setJornadas] = useState<JornadaLaboral[]>([]);
   const [estadisticas, setEstadisticas] = useState<Record<string, EstadisticasEmpleado>>({});
@@ -61,11 +60,8 @@ const ECommerce: React.FC = () => {
     const fetchData = async () => {
       try {
         // Get auth token from cookies
-        const token = document.cookie
-          .split('; ')
-          .find(row => row.startsWith('token='))
-          ?.split('=')[1];
-
+        const usuario = localStorage.getItem('user');
+        const token = usuario ? JSON.parse(usuario).token : null;
         const headers = {
           'Authorization': `Bearer ${token}`
         };
@@ -94,6 +90,7 @@ const ECommerce: React.FC = () => {
 
     fetchData();
   }, []);
+
 
   const totalMinutosTarde = Object.values(estadisticas).reduce(
     (total, emp) => total + emp.total_minutos_tarde, 
@@ -156,4 +153,4 @@ const ECommerce: React.FC = () => {
   );
 };
 
-export default ECommerce;
+

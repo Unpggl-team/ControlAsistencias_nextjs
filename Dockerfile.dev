@@ -1,0 +1,21 @@
+# Dockerfile.dev
+
+FROM node:18-alpine
+
+WORKDIR /
+
+# Solo copiamos los package*.json para cachear instalación
+COPY /package*.json ./
+
+RUN npm install
+
+# Copiamos todo el código
+COPY / .
+
+# Instalamos las herramientas necesarias para desarrollo
+RUN npm install -g npm
+
+EXPOSE 3000
+
+# Por defecto inicia en modo dev
+CMD ["npm", "run", "dev"]

@@ -43,7 +43,7 @@ export async function POST(request: Request) {
         });
         
     } catch (error) {
-        console.error('Error al procesar la solicitud:', error);
+        console.error('Error al procesar la solicitud:', error, Response.error);
         return NextResponse.json(
             { message: 'Error al procesar la solicitud' },
             { status: 500 }

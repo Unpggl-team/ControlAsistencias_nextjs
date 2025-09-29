@@ -229,8 +229,15 @@ export async function POST(request: Request) {
 export async function GET(request: Request) {
   try {
     // Obtener el token de la cookie
-    const cookieStore = cookies();
-    const token = cookieStore.get('token');
+    const authHeader = request.headers.get('Authorization');
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+            return NextResponse.json(
+                { message: 'No hay token de autenticación' },
+                { status: 401 }
+            );
+        }
+
+        const token = authHeader.split(' ')[1];
 
     if (!token) {
       return NextResponse.json(
@@ -246,7 +253,7 @@ export async function GET(request: Request) {
     const empleadosResponse = await fetch(`${process.env.NEXT_PUBLIC_PROYECTO_URL_API}/lista_empleados`, {
       method: 'GET',
       headers: {
-        'Authorization': `Bearer ${token.value}`,
+        'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json'
       }
     });

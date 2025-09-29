@@ -13,7 +13,7 @@ export async function GET(request: Request) {
         }
 
         const token = authHeader.split(' ')[1];
-
+        //console.log('buscando el token ' + authHeader)
         const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/Datos_personal`, {
             method: 'POST',
             headers: {
@@ -22,7 +22,6 @@ export async function GET(request: Request) {
                 'Accept': 'application/json'
             }
         });
-
         if (!response.ok) {
             throw new Error(`Error HTTP: ${response.status}`);
         }

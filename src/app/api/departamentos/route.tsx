@@ -1,10 +1,18 @@
 import { NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
+import { request } from 'http';
 
-export async function GET() {
+export async function GET(request: Request) {
     try {
-        const cookieStore = cookies()
-        const token = cookieStore.get('token')?.value
+            const authHeader = request.headers.get('Authorization');
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+            return NextResponse.json(
+                { message: 'No hay token de autenticación' },
+                { status: 401 }
+            );
+        }
+
+        const token = authHeader.split(' ')[1];
 
         if (!token) {
             return NextResponse.json(

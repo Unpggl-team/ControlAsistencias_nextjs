@@ -124,19 +124,22 @@ export async function GET(request: Request): Promise<NextResponse> {
         }
 
         // Get authorization token from headers
-        const headersList = headers();
-        const token = headersList.get('authorization');
-
-        if (!token) {
-            throw new Error('Token de autorización no proporcionado');
+         const authHeader = request.headers.get('Authorization');
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+            return NextResponse.json(
+                { message: 'No hay token de autenticación' },
+                { status: 401 }
+            );
         }
+
+        const token = authHeader.split(' ')[1];
+        console.log("token en jornadas " + token);
 
         const empleadosResponse: Response = await fetch('http://localhost:3000/api/lista_empleados', {
             headers: {
-                'Authorization': token
+                'Authorization': `Bearer ${token}`
             }
         });
-
         if (!empleadosResponse.ok) {
             throw new Error('Error al obtener la lista de empleados');
         }
