@@ -1,98 +1,41 @@
 "use client";
 import { useState, useEffect } from "react";
-
-interface Empleado {
-  id: number;
-  name: string;
-  primer_apellido: string;
-  cedula: string;
-  id_departamento: number;
-  id_cargo: string;
-  inss: string;
-  tiene_jornada_asignada?: boolean;
-}
-
-interface Cargo {
-  id_cargo: string;
-  cargo: string;
-}
-
-interface Departamento {
-  value: number;
-  option: string;
-}
+import { Empleado } from "../../models";
+import { useEmpleados } from "../../hooks/useEmpleados";
+import { jornadaService, employeeService } from "../../services";
 
 // Hacemos la página pública eliminando cualquier verificación de autenticación
 export default function Movimientos() {
   const [cedula, setCedula] = useState<string>('');
   const [empleado, setEmpleado] = useState<Empleado | null>(null);
   const [error, setError] = useState<string>('');
-  const [departamentos, setDepartamentos] = useState<Departamento[]>([]);
-  const [cargos, setCargos] = useState<Cargo[]>([]);
   const [registrando, setRegistrando] = useState(false);
   const [mensajeExito, setMensajeExito] = useState<string>('');
 
-  const userdata = localStorage.getItem('user');
-  const token = userdata ? JSON.parse(userdata).token : '';
+  const { empleados, cargos, departamentos, getNombreCargo, getNombreDepartamento } = useEmpleados();
 
-
-  const obtenerDepartamentos = async () => {
-    try {
-    
-      const response = await fetch('/api/departamentos', {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-      const { data } = await response.json();
-      setDepartamentos(data || []);
-    } catch (error) {
-      console.error('Error al obtener departamentos:', error);
-      setDepartamentos([]);
-    }
-  };
 
   const buscarEmpleado = async (): Promise<void> => {
     try {
-      
-      const [empleadosResponse, asignacionesResponse, jornadaResponse] = await Promise.all([
-        fetch('/api/lista_empleados', {
-          headers: {
-            'Authorization': `Bearer ${token}`
-          }
-        }),
-        fetch('/api/empleado-jornada', {
-          headers: {
-            'Authorization': `Bearer ${token}`
-          }
-        }),
-        fetch(`/api/jornadas/registro?fecha=${new Date().toISOString().split('T')[0]}`, {
-          headers: {
-            'Authorization': `Bearer ${token}`
-          }
-        })
+      const [asignacionesResponse, jornadaResponse] = await Promise.all([
+        jornadaService.getEmpleadoJornada(),
+        jornadaService.getRegistroJornada(new Date().toISOString().split('T')[0])
       ]);
-      
-      const empleadosData = await empleadosResponse.json();
-      const asignacionesData = await asignacionesResponse.json();
-      const jornadaData = await jornadaResponse.json();
-      
-      const empleadoEncontrado = empleadosData.data.find((emp: Empleado) => 
+
+      const empleadoEncontrado = empleados.find((emp: Empleado) =>
         emp.cedula.replace(/[-\s]/g, '') === cedula.replace(/[-\s]/g, '') ||
         emp.inss === cedula
       );
 
       if (empleadoEncontrado) {
-        const tieneJornadaAsignada = asignacionesData.data.some(
-          (asignacion: { id_empleado: number; activo: boolean }) =>
-            asignacion.id_empleado === empleadoEncontrado.id && asignacion.activo
+        const tieneJornadaAsignada = asignacionesResponse.some(
+          (asignacion) => asignacion.id_empleado === empleadoEncontrado.id && asignacion.activo
         );
 
-        const registroHoy = jornadaData.data.find(
-          (registro: { empleado: { id: number }; entrada: any; salida: any }) =>
-            registro.empleado.id === empleadoEncontrado.id
+        const registroHoy = jornadaResponse.data.find(
+          (registro) => registro.empleado.id === empleadoEncontrado.id
         );
-        
+
         setEmpleado({
           ...empleadoEncontrado,
           tiene_jornada_asignada: tieneJornadaAsignada,
@@ -123,52 +66,39 @@ export default function Movimientos() {
 
   const registrarMovimiento = async (tipo: 'entrada' | 'salida') => {
     if (!empleado) return;
-    
+
     if (!empleado.tiene_jornada_asignada) {
       setError('No se puede registrar movimiento. El empleado no tiene una jornada asignada.');
       setTimeout(() => setError(''), 3000);
       return;
     }
-    
+
     setRegistrando(true);
     try {
-        const response = await fetch(`/api/registrar_${tipo}`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                id_empleado: empleado.id
-            })
-        });
+      const service = tipo === 'entrada' ? employeeService.registrarEntrada : employeeService.registrarSalida;
+      const data = await service(empleado.id);
 
-        const data = await response.json();
-
-        if (!response.ok) {
-            throw new Error(data.message || `Error al registrar ${tipo}`);
-        }
-        
-        setMensajeExito(data.message || `${tipo.charAt(0).toUpperCase() + tipo.slice(1)} registrada exitosamente`);
+      setMensajeExito(data.message || `${tipo.charAt(0).toUpperCase() + tipo.slice(1)} registrada exitosamente`);
     } catch (error) {
-        console.error(`Error al registrar ${tipo}:`, error);
-        setError(error instanceof Error ? error.message : `Error al registrar ${tipo}`);
+      console.error(`Error al registrar ${tipo}:`, error);
+      setError(error instanceof Error ? error.message : `Error al registrar ${tipo}`);
     } finally {
-        setRegistrando(false);
-        setCedula('');
-        setEmpleado(null);
-        
-        // Limpiar mensajes después de 3 segundos
-        setTimeout(() => {
-            setError('');
-            setMensajeExito('');
-            
-            const input = document.getElementById('cedula-input');
-            if (input) {
-                input.focus();
-            }
-        }, 3000);
+      setRegistrando(false);
+      setCedula('');
+      setEmpleado(null);
+
+      // Limpiar mensajes después de 3 segundos
+      setTimeout(() => {
+        setError('');
+        setMensajeExito('');
+
+        const input = document.getElementById('cedula-input');
+        if (input) {
+          input.focus();
+        }
+      }, 3000);
     }
-};
+  };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>): void => {
     setCedula(e.target.value);
@@ -184,36 +114,7 @@ export default function Movimientos() {
     if (input) {
       input.focus();
     }
-    obtenerDepartamentos();
-    obtenerCargos();
   }, []);
-
-const obtenerCargos = async () => {
-  try {
-    const userdata = localStorage.getItem('user');
-      const token = userdata ? JSON.parse(userdata).token : '';
-    const response = await fetch('/api/obtenerCargos', {
-      headers: {
-        'Authorization': `Bearer ${token}`
-      }
-    });
-    const { data } = await response.json();
-    setCargos(data);
-  } catch (error) {
-    console.error('Error al obtener cargos:', error);
-    setCargos([]);
-  }
-};
-
-const getNombreCargo = (id: string): string => {
-  const cargo = cargos.find(c => c.id_cargo === id);
-  return cargo ? cargo.cargo : id;
-};
-  const getNombreDepartamento = (value: number): string | number => {
-    if (!departamentos || departamentos.length === 0) return value;
-    const departamento = departamentos.find(dep => dep.value === value);
-    return departamento ? departamento.option : value;
-  };
 
   return (
     <div className="flex items-center justify-center min-h-screen bg-gray-100 dark:bg-boxdark">

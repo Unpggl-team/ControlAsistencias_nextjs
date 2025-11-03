@@ -1,64 +1,10 @@
-import { useState, useEffect } from 'react';
-
-interface Empleado {
-    id: number;
-    name: string;
-    segundo_nombre: string;
-    primer_apellido: string;
-    segundo_apellido: string;
-}
-
-interface JornadaLaboral {
-    id_empleado: number;
-    nombre_empleado: string;
-    fecha: string;
-    hora_entrada: string;
-    hora_salida: string;
-    llegadaTarde: boolean;
-    salidaTemprana: boolean;
-    minutos_tarde: number;
-    minutos_temprano: number;
-    horas_trabajadas: number;
-    cumple_jornada: boolean;
-}
-
-interface EstadisticasEmpleado {
-    id_empleado: number;
-    nombre_empleado: string;
-    total_llegadas_tarde: number;
-    total_salidas_temprano: number;
-    total_minutos_tarde: number;
-    total_minutos_temprano: number;
-    promedio_horas_trabajadas: number;
-    dias_trabajados: number;
-    dias_jornada_completa: number;
-}
-
-interface AsignacionJornada {
-    id: number;
-    id_empleado: number;
-    parametrosJornadaId: number;
-    fecha_asignacion: string;
-    activo: boolean;
-    parametrosJornada: {
-        id: number;
-        hora_entrada_esperada: string;
-        hora_salida_esperada: string;
-        tolerancia_minutos: number;
-        horas_laborales: number;
-        activo: boolean;
-        fecha_creacion: string;
-    };
-}
+import { useState, useEffect, useCallback } from 'react';
+import { Empleado, JornadaLaboral, EstadisticasEmpleado, EmpleadoJornada } from '../../models';
+import { useJornadas } from '../../hooks/useJornadas';
 
 const JornadasTable = () => {
-    const [jornadas, setJornadas] = useState<JornadaLaboral[]>([]);
     const [jornadasFiltradas, setJornadasFiltradas] = useState<JornadaLaboral[]>([]);
-    const [empleados, setEmpleados] = useState<Empleado[]>([]);
-    const [estadisticas, setEstadisticas] = useState<Record<string, EstadisticasEmpleado>>({});
-    const [asignacionesJornada, setAsignacionesJornada] = useState<AsignacionJornada[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
+    const { jornadas, estadisticas, asignacionesJornada, empleados, loading, error } = useJornadas();
     
     // Get first and last day of current month
     const hoy = new Date();
@@ -68,52 +14,8 @@ const JornadasTable = () => {
     const [fechaInicio, setFechaInicio] = useState(primerDiaMes.toISOString().split('T')[0]);
     const [fechaFin, setFechaFin] = useState(ultimoDiaMes.toISOString().split('T')[0]);
 
-    useEffect(() => {
-        const fetchData = async () => {
-            try {
-                // Get work schedules
-                const user = localStorage.getItem('user');
-                const token = user ? JSON.parse(user).token : null;
-                if (!token) throw new Error('No se encontró el token en localStorage');
 
-                const jornadasResponse = await fetch(`${process.env.NEXT_PUBLIC_PROYECTO_URL_API}/jornadas`, {
-                    headers: {
-                        'Authorization': `Bearer ${token}`
-                    }
-                });
-                if (!jornadasResponse.ok) throw new Error('Error al cargar las jornadas');
-                const jornadasData = await jornadasResponse.json();
-                
-                // Get employees
-                const empleadosResponse = await fetch(`${process.env.NEXT_PUBLIC_PROYECTO_URL_API}/lista_empleados`, {
-                  headers: {
-                    'Authorization': `Bearer ${token}`
-                  }
-                });
-                
-                if (!empleadosResponse.ok) throw new Error('Error al cargar los empleados');
-                const empleadosData = await empleadosResponse.json();
-                
-                setJornadas(jornadasData.jornadas);
-                setJornadasFiltradas(jornadasData.jornadas);
-                setEmpleados(empleadosData.data);
-                setEstadisticas(jornadasData.estadisticas);
-                setAsignacionesJornada(jornadasData.asignaciones_jornada);
-            } catch (err) {
-                setError(err instanceof Error ? err.message : 'Error desconocido');
-            } finally {
-                setLoading(false);
-            }
-        };
-
-        fetchData();
-    }, []);
-
-    useEffect(() => {
-        filtrarJornadas();
-    }, [fechaInicio, fechaFin, jornadas]);
-   
-    const filtrarJornadas = () => {
+    const filtrarJornadas = useCallback(() => {
         let jornadasTemp = [...jornadas];
 
         if (fechaInicio) {
@@ -133,7 +35,11 @@ const JornadasTable = () => {
         }
 
         setJornadasFiltradas(jornadasTemp);
-    };
+    }, [jornadas, fechaInicio, fechaFin]);
+
+    useEffect(() => {
+        filtrarJornadas();
+    }, [filtrarJornadas]);
 
     // Get schedule parameters for an employee
     const getParametrosJornada = (id_empleado: number) => {
@@ -154,15 +60,15 @@ const JornadasTable = () => {
                     <h2 className="text-lg font-semibold mb-2">Parámetros de Jornada por Empleado</h2>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                         {asignacionesJornada.map((asignacion) => {
-                            const empleado = empleados.find(e => e.id === asignacion.id_empleado);
+                            const empleado = Array.isArray(empleados) ? empleados.find(e => e.id === asignacion.id_empleado) : undefined;
                             return (
                                 <div key={asignacion.id} className="border dark:border-gray-700 p-3 rounded bg-white dark:bg-gray-800">
                                     <h3 className="font-medium text-gray-900 dark:text-gray-100">{empleado?.name} {empleado?.segundo_nombre} {empleado?.primer_apellido} {empleado?.segundo_apellido}</h3>
                                     <div className="text-sm text-gray-700 dark:text-gray-300">
-                                        <p>Entrada: {asignacion.parametrosJornada.hora_entrada_esperada}</p>
-                                        <p>Salida: {asignacion.parametrosJornada.hora_salida_esperada}</p>
-                                        <p>Tolerancia: {asignacion.parametrosJornada.tolerancia_minutos} min</p>
-                                        <p>Horas: {asignacion.parametrosJornada.horas_laborales}</p>
+                                        <p>Entrada: {asignacion.parametrosJornada?.hora_entrada_esperada}</p>
+                                        <p>Salida: {asignacion.parametrosJornada?.hora_salida_esperada}</p>
+                                        <p>Tolerancia: {asignacion.parametrosJornada?.tolerancia_minutos} min</p>
+                                        <p>Horas: {asignacion.parametrosJornada?.horas_laborales}</p>
                                     </div>
                                 </div>
                             );

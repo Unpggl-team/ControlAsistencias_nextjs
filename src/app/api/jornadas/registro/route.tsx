@@ -247,7 +247,24 @@ export async function GET(request: Request) {
     }
 
     const { searchParams } = new URL(request.url);
-    const fecha = searchParams.get('fecha') || new Date().toISOString().split('T')[0];
+    //const fecha = searchParams.get('fecha');
+    const fechaInicio = searchParams.get('fechaInicio');
+    const fechaFin = searchParams.get('fechaFin');
+
+    // Si se proporciona un rango de fechas, usarlo; sino usar fecha individual o fecha actual
+    let filtroFecha;
+    if (fechaInicio && fechaFin) {
+      filtroFecha = {
+        gte: new Date(`${fechaInicio}T00:00:00.000Z`),
+        lte: new Date(`${fechaFin}T23:59:59.999Z`)
+      };
+    } else {
+      const hoy = new Date().toISOString().split('T')[0];
+      filtroFecha = {
+        gte: new Date(`${hoy}T00:00:00.000Z`),
+        lt: new Date(`${hoy}T23:59:59.999Z`)
+      };
+    }
 
     // Obtener empleados de la API externa
     const empleadosResponse = await fetch(`${process.env.NEXT_PUBLIC_PROYECTO_URL_API}/lista_empleados`, {
@@ -261,63 +278,72 @@ export async function GET(request: Request) {
     
     const todosEmpleados: Empleado[] = empleadosData.data;
 
-    // Obtener registros de entrada y salida de Prisma
+    // Obtener registros de entrada y salida de Prisma para el rango de fechas
     const [entradas, salidas] = await Promise.all([
       prisma.entradas.findMany({
         where: {
-          fecha_entrada: {
-            gte: new Date(`${fecha}T00:00:00.000Z`),
-            lt: new Date(`${fecha}T23:59:59.999Z`)
-          }
+          fecha_entrada: filtroFecha
         },
         orderBy: { hora_entrada: 'asc' }
       }),
       prisma.salidas.findMany({
         where: {
-          fecha_salida: {
-            gte: new Date(`${fecha}T00:00:00.000Z`),
-            lt: new Date(`${fecha}T23:59:59.999Z`)
-          }
+          fecha_salida: filtroFecha
         },
         orderBy: { hora_salida: 'asc' }
       })
     ]);
 
-    // Filtrar empleados que tienen entrada (sin requerir salida)
-    const empleadosConRegistros = todosEmpleados.filter(empleado => {
-      const tieneEntrada = entradas.some(e => e.id_empleado === empleado.id);
-      return tieneEntrada;
+    // Crear un mapa de registros por empleado y fecha
+    const registrosPorEmpleadoFecha = new Map<string, RegistroEmpleado>();
+
+    // Procesar entradas
+    entradas.forEach(entrada => {
+      const fechaRegistro = entrada.fecha_entrada.toISOString().split('T')[0];
+      const empleado = todosEmpleados.find(emp => emp.id === entrada.id_empleado);
+      
+      if (empleado) {
+        const key = `${entrada.id_empleado}-${fechaRegistro}`;
+        registrosPorEmpleadoFecha.set(key, {
+          empleado: {
+            id: empleado.id,
+            nombre: `${empleado.name} ${empleado.primer_apellido}`,
+            cedula: empleado.cedula,
+            id_departamento: empleado.id_departamento,
+            id_cargo: empleado.id_cargo
+          },
+          fecha: fechaRegistro,
+          entrada: {
+            hora: entrada.hora_entrada.toISOString().split('T')[1].substring(0, 8),
+            fecha: fechaRegistro
+          },
+          salida: null,
+          estado: 'Pendiente Salida'
+        });
+      }
     });
 
-    const registrosPorEmpleado: RegistroEmpleado[] = empleadosConRegistros.map(empleado => {
-      const entrada = entradas.find(e => e.id_empleado === empleado.id);
-      const salida = salidas.find(s => s.id_empleado === empleado.id);
-
-      return {
-        empleado: {
-          id: empleado.id,
-          nombre: `${empleado.name} ${empleado.primer_apellido}`,
-          cedula: empleado.cedula,
-          id_departamento: empleado.id_departamento,
-          id_cargo: empleado.id_cargo
-        },
-        fecha,
-        entrada: entrada ? {
-          hora: entrada.hora_entrada.toISOString().split('T')[1].substring(0, 8),
-          fecha: entrada.fecha_entrada.toISOString().split('T')[0]
-        } : null,
-        salida: salida ? {
+    // Procesar salidas
+    salidas.forEach(salida => {
+      const fechaRegistro = salida.fecha_salida.toISOString().split('T')[0];
+      const key = `${salida.id_empleado}-${fechaRegistro}`;
+      
+      if (registrosPorEmpleadoFecha.has(key)) {
+        const registro = registrosPorEmpleadoFecha.get(key)!;
+        registro.salida = {
           hora: salida.hora_salida.toISOString().split('T')[1].substring(0, 8),
-          fecha: salida.fecha_salida.toISOString().split('T')[0]
-        } : null,
-        estado: salida ? 'Completo' : 'Pendiente Salida'
-      };
+          fecha: fechaRegistro
+        };
+        registro.estado = 'Completo';
+      }
     });
+
+    const registrosPorEmpleado = Array.from(registrosPorEmpleadoFecha.values());
 
     return NextResponse.json({
       message: 'Registros obtenidos exitosamente',
       data: registrosPorEmpleado,
-      total_empleados: empleadosConRegistros.length,
+      total_empleados: registrosPorEmpleado.length,
       total_registros: registrosPorEmpleado.length
     });
 
